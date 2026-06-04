@@ -31,10 +31,23 @@ class MainActivity : ComponentActivity() {
                                 onBackClick = { selectedDocument = null }
                             )
                         }
-                        else -> {
-                            // Placeholder for other file format views (DOCX, XLSX, etc.)
-                            // For now, it gracefully kicks back to the list screen
-                            selectedDocument = null 
+                        when (doc.type) {
+                            DocType.PDF -> {
+                                PdfViewerScreen(
+                                    document = doc,
+                                    onBackClick = { selectedDocument = null }
+                                )
+                            }
+                            DocType.DOCX -> {
+                                OfficeViewerScreen(
+                                    document = doc,
+                                    onBackClick = { selectedDocument = null }
+                                )
+                            }
+                            else -> {
+                                // Fallback for XLSX, PPTX, TXT formats
+                                // Tip: You can reuse OfficeViewerScreen by adding custom excel parsers to DocxToHtmlConverter!
+                                selectedDocument = null
                         }
                     }
                 }
