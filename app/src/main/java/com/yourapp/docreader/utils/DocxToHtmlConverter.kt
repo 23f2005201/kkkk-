@@ -7,6 +7,8 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.zip.ZipInputStream
+import java.io.InputStream
+import java.util.zip.ZipEntry
 
 object DocxToHtmlConverter {
 
@@ -77,4 +79,78 @@ object DocxToHtmlConverter {
         }
         return result.toString()
     }
+}
+suspend fun convertTxtToHtml(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+    val htmlBuilder = StringBuilder()
+    htmlBuilder.append("<html><head><style>")
+    htmlBuilder.append("body { font-family: 'Roboto', sans-serif; padding: 20px; color: #333333; line-height: 1.6; font-size: 16px; }")
+    htmlBuilder.append("</style></head><body>")
+
+    try {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    // Escape basic HTML characters to avoid rendering glitches, then wrap in a paragraph
+                    val safeLine = line?.replace("&", "&amp;")?.replace("<", "&lt;")?.replace(">", "&gt;")
+                    if (safeLine {
+                        if (safeLine.isBlank()) {
+                            htmlBuilder.append("<br/>") // Keep empty line spaces
+                        } else {
+                            htmlBuilder.append("<p>").append(safeLine).append("</p>")
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        htmlBuilder.append("<p style='color:red;'>Error reading text file.</p>")
+    }
+
+    htmlBuilder.append("</body></html>")
+    return@withContext htmlBuilder.toString()
+}
+
+/**
+ * Basic local EPUB extractor. It opens the EPUB zip container, finds the main 
+ * XHTML/HTML book text chapters, and bundles them into a single string.
+ */
+suspend fun convertEpubToHtml(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+    val htmlBuilder = StringBuilder()
+    htmlBuilder.append("<html><head><style>")
+    htmlBuilder.append("body { font-family: 'Roboto', sans-serif; padding: 20px; color: #222222; line-height: 1.7; font-size: 18px; }")
+    htmlBuilder.append("p { margin-bottom: 16px; }")
+    htmlBuilder.append("</style></head><body>")
+
+    try {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            val zipInputStream = ZipInputStream(inputStream)
+            var entry: ZipEntry? = zipInputStream.nextEntry
+
+            while (entry != null) {
+                // EPUB chapters are usually stored in .xhtml, .html, or .htm files inside the zip
+                if (entry.name.endsWith(".xhtml") || entry.name.endsWith(".html") || entry.name.endsWith(".htm")) {
+                    val reader = BufferedReader(InputStreamReader(zipInputStream))
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        // Stripping out full <html> or <head> tags inside chapters to prevent nested HTML conflicts
+                        val cleanLine = line?.replace("<?xml.*?>".toRegex(), "")
+                            ?.replace("<html.*?>".toRegex(), "")
+                            ?.replace("</html>".toRegex(), "")
+                            ?.replace("<body.*?>".toRegex(), "")
+                            ?.replace("</body>".toRegex(), "")
+                        htmlBuilder.append(cleanLine)
+                    }
+                }
+                entry = zipInputStream.nextEntry
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        htmlBuilder.append("<p style='color:red;'>Error reading eBook content.</p>")
+    }
+
+    htmlBuilder.append("</body></html>")
+    return@withContext htmlBuilder.toString()
 }
