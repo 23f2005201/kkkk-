@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.yourapp.docreader.data.DocumentModel
 import com.yourapp.docreader.utils.DocxToHtmlConverter
+import com.yourapp.docreader.data.DocType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,4 +72,14 @@ fun OfficeViewerScreen(
             }
         }
     }
+}
+
+LaunchedEffect(document) {
+    htmlContent = when (document.type) {
+        DocType.DOCX -> DocxToHtmlConverter.convertDocxToHtml(context, document.uri)
+        DocType.TXT -> DocxToHtmlConverter.convertTxtToHtml(context, document.uri)
+        DocType.EPUB -> DocxToHtmlConverter.convertEpubToHtml(context, document.uri)
+        else -> "<html><body><p>Unsupported file type</p></body></html>"
+    }
+    isLoading = false
 }
